@@ -1,0 +1,108 @@
+name: nexus_linux
+version: 1.0.0+1
+publish_to: none
+description: "Nexus for Linux desktop"
+
+environment:
+  sdk: ">=3.0.5 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+
+  player_shared:
+    path: ../
+
+  get: ^4.7.3
+  hive_flutter: 1.1.0
+  media_kit: ^1.2.2
+  media_kit_video: ^2.0.0
+  # Linux 下 media_kit_libs_video 会自动拉取/链接系统或自带的 libmpv，
+  # 与 Windows/macOS 走同一套 Dart 侧 API，无需额外适配。
+  media_kit_libs_video: ^1.0.7
+
+  # 【不引入 vlc_player】Linux 端统一使用纯 media_kit（mpv）单一播放后端，
+  # 本地视频与 IPTV 直播共用同一套播放核心（applyMpvOptions 调优），不再
+  # 提供 VLC 备用后端。
+  #
+  # 原因：vlc_player 在 Linux 上依赖系统已安装的 libvlc5 / vlc-plugin-base
+  # 动态库，这两个包在不同 Linux 发行版（以及同一发行版不同版本）上的
+  # 包名、版本号、可用性都不一致，会导致以 Ubuntu 为基准编译产出的 .deb
+  # 在其他发行版上出现依赖冲突/安装失败。media_kit 只需要 libmpv2，绝大
+  # 多数发行版官方仓库都稳定提供，依赖面小很多。参考 dart_simple_live
+  # 项目 Linux 端的做法：全平台统一只用 media_kit。
+  # 详见 lib/app/controller/app_settings_controller.dart 顶部说明。
+
+  # ── 视频缩略图原生取帧：屏蔽 fc_native_video_thumbnail 的 Linux 原生实现 ──
+  #
+  # 【踩坑记录】fc_native_video_thumbnail 是在根 pubspec.yaml（player_shared
+  # 共享包，Windows/macOS 也在用）里声明的依赖，通过 player_shared 的
+  # path 依赖被*传递*进本项目——linux/pubspec.yaml 这里加不加它都没用，
+  # 它已经在依赖图里了。它声明了自己的 Linux 原生实现（CMakeLists.txt 用
+  # pkg_check_modules 链接系统 FFmpeg 的 libavformat/libavcodec/libavutil/
+  # libswscale），只要它出现在依赖图里，`flutter build linux` 就会无条件
+  # 把这部分原生代码编译链接进最终产物——不管 Dart 代码运行时是否真的
+  # 调用得到它（本项目里它只在 Platform.isWindows 分支下才会被调用，见
+  # ../lib/src/media_cache/video_thumbnail_generator.dart，Linux 端从未
+  # 真正用到它，一直是走 media_kit 截图兜底方案）。
+  #
+  # 实测后果：CI 用 Ubuntu 24.04 编译，链接的是 FFmpeg 6.x 对应的
+  # libavformat.so.60；用户在 Debian 13（FFmpeg 7.1.x，SONAME 已升级为
+  # libavformat.so.61，7.0 版本起做过一次 SONAME bump）上运行会直接报
+  # "error while loading shared libraries: libavformat.so.60: cannot open
+  # shared object file"——FFmpeg 各主要发行版本之间 SONAME 经常不兼容，
+  # 装对应 -dev 包也无法解决版本号硬性不匹配的问题，是本应用继 VLC 之后
+  # 第二个"编译发行版和运行发行版版本不一致就崩"的依赖来源。
+  #
+  # 修复方式：用 dependency_overrides 把 fc_native_video_thumbnail 替换成
+  # third_party/fc_native_video_thumbnail_stub 这个本地纯 Dart 桩包（只在
+  # 从 linux/ 目录构建时生效，不影响根 pubspec.yaml 或其他平台）。桩包不
+  # 声明任何 flutter plugin 平台实现，Flutter 插件注册机制找不到原生代码
+  # 可编译，`flutter build linux` 自然不会再链接 FFmpeg。桩包的
+  # saveThumbnailToFile 方法固定返回 false，即便被意外调用也会被调用方
+  # 自动识别为"取帧失败"并回退到 media_kit 截图方案，行为不变。
+  # 详见 third_party/fc_native_video_thumbnail_stub/pubspec.yaml。
+
+  cupertino_icons: ^1.0.8
+  dynamic_color: ^1.8.1
+  flutter_smart_dialog: ^4.9.8+9
+
+  package_info_plus: ^9.0.0
+  url_launcher: ^6.3.2
+  file_picker: ^10.3.7
+  window_manager: ^0.5.1
+  tray_manager: ^0.5.1
+  screen_retriever: ^0.2.0
+  wakelock_plus: ^1.4.0
+  connectivity_plus: 7.0.0
+  collection: any
+  intl: ^0.20.2
+  path: any
+  dio: ^5.9.0
+
+dev_dependencies:
+  flutter_lints: ^2.0.0
+  flutter_test:
+    sdk: flutter
+  flutter_launcher_icons: ^0.13.1
+
+# 【仅 Linux 端生效】用本地纯 Dart 桩包覆盖 fc_native_video_thumbnail，
+# 屏蔽其 Linux 原生实现对系统 FFmpeg 的强绑定（详见上方 dependencies 里
+# "视频缩略图原生取帧"处的详细说明，以及桩包自身的 pubspec.yaml 注释）。
+# dependency_overrides 只作用于以本文件为根解析依赖时的结果，不影响
+# 根 pubspec.yaml 或 windows/macos/android/ios 各自的依赖解析。
+dependency_overrides:
+  fc_native_video_thumbnail:
+    path: third_party/fc_native_video_thumbnail_stub
+
+# flutter_launcher_icons 不支持 linux 平台自动生成，图标改由
+# linux/my_application.cc + assets/icons/app_icon.png 手动关联
+# （详见 CMakeLists.txt 安装规则），故此处不再有 flutter_launcher_icons:
+# 配置块。
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/icons/

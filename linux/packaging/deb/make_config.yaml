@@ -1,0 +1,36 @@
+display_name: Nexus
+package_name: nexus
+maintainer:
+  name: Nexus
+  email: noreply@example.com
+priority: optional
+section: video
+installed_size: 90000
+essential: false
+dependencies:
+  # 桌面框架：flutter build linux 生成的 Runner 直接链接 GTK3。
+  - libgtk-3-0 | libgtk-3-0t64
+  # media_kit（mpv 播放核心）运行时库。libmpv-dev 只在编译期需要，
+  # 运行时需要的是不带 -dev 的 libmpv2（Debian/Ubuntu 的实际包名，
+  # 提供 libmpv.so.2）。这是本应用唯一的播放后端，不再依赖 libvlc5 /
+  # vlc-plugin-base——这两个包在不同 Linux 发行版间包名、版本号、可用性
+  # 差异较大，是本项目此前在非 Ubuntu 系统上出现依赖冲突的主要来源。
+  - libmpv2
+  # tray_manager（系统托盘图标）运行时依赖。
+  - libayatana-appindicator3-1 | libappindicator3-1
+  # volume_controller（系统音量）运行时依赖，ALSA。
+  - libasound2 | libasound2t64
+icon: assets/icons/app_icon.png
+
+keywords:
+  - Nexus
+  - IPTV
+  - Video Player
+
+generic_name: Nexus
+
+categories:
+  - AudioVideo
+  - Player
+
+startup_notify: true

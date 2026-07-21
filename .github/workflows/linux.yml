@@ -1,0 +1,170 @@
+name: Build Linux
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build Linux Bundle
+    runs-on: ubuntu-24.04
+
+    steps:
+      # ── Checkout ────────────────────────────────────────────────────────
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ── Linux 桌面构建工具链 ────────────────────────────────────────────
+      # clang/cmake/ninja/pkg-config/libgtk-3-dev 是 flutter build linux
+      # 官方文档要求的最小依赖集；libstdc++-12-dev 是 Ubuntu 22.04 上常见
+      # 的补充依赖（缺失时链接期会报找不到部分 C++ 标准库符号）。
+      - name: Install Linux desktop build dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y \
+            clang \
+            cmake \
+            ninja-build \
+            pkg-config \
+            libgtk-3-dev \
+            libstdc++-12-dev \
+            liblzma-dev
+
+      # ── media_kit（mpv 播放核心）编译期依赖 ────────────────────────────
+      # 只需要 -dev 包（头文件 + .so 的编译期链接符号），不需要在这里
+      # 操心运行时的 .so 会不会被打进产物——运行时依赖交给下面的 .deb
+      # 打包步骤，通过 Depends 字段声明，由 apt 在用户安装时自动解决。
+      # 这是本文件这一轮改动的核心思路调整，详见文件末尾的说明。
+      - name: Install libmpv (media_kit build dependency)
+        run: |
+          sudo apt-get install -y libmpv-dev mpv
+
+      # ── appindicator（tray_manager 系统托盘依赖）───────────────────────
+      - name: Install libayatana-appindicator (tray_manager dependency)
+        run: |
+          sudo apt-get install -y libayatana-appindicator3-dev
+
+      # ── ALSA（volume_controller 音量控制依赖）─────────────────────────
+      - name: Install libasound2-dev (volume_controller ALSA dependency)
+        run: |
+          sudo apt-get install -y libasound2-dev
+
+      # ── Flutter ──────────────────────────────────────────────────────
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.6'
+          channel: stable
+          cache: true
+
+      - name: Enable Linux desktop
+        run: flutter config --enable-linux-desktop
+
+      # ── 生成原生 runner ─────────────────────────────────────────────
+      # 本仓库约定：各平台目录（windows/、android/ 等）只保留 Dart 源码 +
+      # pubspec + assets，原生 runner（CMake/GTK、Gradle 工程等）由
+      # flutter create 在构建时生成、不入库。linux/ 沿用同样的约定，
+      # 详见 linux/README_LINUX_PORT.md。
+      - name: Create Linux platform project
+        working-directory: linux
+        run: flutter create --platforms=linux .
+
+      - name: Remove default widget test
+        working-directory: linux
+        run: |
+          rm -f test/widget_test.dart
+          rmdir --ignore-fail-on-non-empty test 2>/dev/null || true
+
+      # ── flutter_distributor 打包配置 ───────────────────────────────────
+      # flutter create 只生成 Runner 工程本身，不含 packaging/ 目录；
+      # flutter_distributor 要求 packaging/deb/make_config.yaml 存在才能
+      # 执行 deb 打包（声明 apt 依赖、图标、分类等元数据）。这份配置文件
+      # 保存在仓库里的 linux/packaging/deb/make_config.yaml。
+      #
+      # 【路径坑，实测踩过】flutter_distributor 的 loadMakeConfigYaml 是
+      # 用相对路径 "linux/packaging/deb/make_config.yaml" 读取配置的
+      # （源码 package:flutter_app_packager 里硬编码），这个相对路径是
+      # 相对于 flutter_distributor package 命令自身的工作目录。而
+      # flutter build（flutter_distributor 内部会调用）要求工作目录必须
+      # 是 pubspec.yaml 所在的目录——在本仓库的约定里就是 linux/ 这一层
+      # （app 根和 Runner 目录合并成了一层，不像 flutter_distributor 参照
+      # 的典型项目结构那样是"app 根 / linux 子目录"两层）。两个要求叠加
+      # 起来，意味着 flutter_distributor 实际会尝试打开
+      # linux/linux/packaging/deb/make_config.yaml（在 linux/ 目录下
+      # 执行、再拼接它硬编码的 "linux/packaging/..." 相对路径）。
+      #
+      # 不在仓库里硬放一份这么别扭的 linux/linux/ 结构，而是在 CI 里把
+      # 仓库中正常位置的 packaging/ 目录复制一份到这个 flutter_distributor
+      # 实际会去找的相对路径下。
+      - name: Prepare deb packaging config for flutter_distributor
+        working-directory: linux
+        run: |
+          set -e
+          if [ ! -f packaging/deb/make_config.yaml ]; then
+            echo "::error::linux/packaging/deb/make_config.yaml 不存在，请先添加该文件（声明 apt 运行时依赖等打包元数据）"
+            exit 1
+          fi
+          mkdir -p linux/packaging
+          cp -r packaging/deb linux/packaging/
+          echo "=== 已复制到 flutter_distributor 期望的相对路径 ==="
+          cat linux/packaging/deb/make_config.yaml
+
+      # ── Dependencies ─────────────────────────────────────────────────
+      - name: Get shared package dependencies
+        run: flutter pub get
+
+      - name: Get Linux app dependencies
+        working-directory: linux
+        run: flutter pub get
+
+      - name: Analyze
+        working-directory: linux
+        run: flutter analyze --no-fatal-infos
+
+      # ── flutter_distributor：打 .deb + .zip 两种产物 ───────────────────
+      # 放弃了之前"手动扫描 mpv 的完整运行时依赖闭包、打包进 tar.gz"的
+      # 方案——那条路上先后遇到过：漏打包依赖（libavformat 缺 FFmpeg 全
+      # 家桶）、SONAME 符号链接丢失（拷贝了文件内容但链接器按确切文件名
+      # 找不到）、打包了不该打包的桌面集成层库导致版本冲突（libglib-2.0/
+      # libwayland 与用户系统的 GNOME 环境 ABI 不兼容）。这些问题的根源
+      # 是：在"发行版无关的静态打包"这个方向上，动态库的依赖树太深、太
+      # 容易在不同发行版间产生 ABI 差异，难以穷举维护。
+      #
+      # 参照社区里其他基于 media_kit 的 Flutter 播放器项目（如
+      # dart_simple_live）的做法：
+      #   1) .deb：运行时依赖（目前只有 libmpv2，已不再依赖 libvlc5/
+      #      vlc-plugin-base，见 packaging/deb/make_config.yaml）通过
+      #      dependencies 字段声明，由 apt 在用户执行
+      #      `sudo apt install ./xxx.deb`（或图形化安装器）时自动解决、
+      #      自动拉取与用户系统版本匹配的运行时库。这是 Debian/Ubuntu
+      #      系发行版原生的依赖管理方式，不需要我们在 CI 里手动维护一份
+      #      依赖闭包脚本。
+      #   2) .zip：免安装绿色包，覆盖 Arch/Fedora/openSUSE 等非 Debian
+      #      系发行版——这些系统装不了 .deb（没有 apt 依赖解析），用户
+      #      解压后自行确保系统已安装 libmpv（各发行版官方仓库通常都有，
+      #      只是包名不同，如 Arch 的 mpv 包、Fedora 的 mpv-libs）即可
+      #      运行，不受 Ubuntu 编译环境的包名/版本号绑定。
+      #
+      # flutter_distributor 会自行调用 flutter build linux --release，
+      # 不需要我们单独跑一遍 flutter build。
+      - name: Install flutter_distributor
+        run: dart pub global activate flutter_distributor
+
+      - name: Build Linux packages (deb + zip)
+        working-directory: linux
+        run: flutter_distributor package --platform linux --targets deb,zip --skip-clean
+
+      - name: List dist output
+        working-directory: linux
+        run: find build/dist -type f
+
+      # ── Create GitHub Release (optional, on version tags) ─────────────
+      - name: Create Release on tag
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: test
+          name: Nexus-test
+          files: |
+            linux/build/dist/**/*.deb
+            linux/build/dist/**/*.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
