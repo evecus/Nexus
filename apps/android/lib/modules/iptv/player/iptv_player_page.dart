@@ -228,10 +228,7 @@ class IptvPlayerController extends GetxController
     if (isFullScreen.value) return;
     isFullScreen.value = true;
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-    SystemChrome.setPreferredOrientations([
-      DeviceOrientation.landscapeLeft,
-      DeviceOrientation.landscapeRight,
-    ]);
+    SystemChrome.setPreferredOrientations(_resolveFullScreenOrientations());
     autoHideControls(seconds: 3);
   }
 
@@ -245,6 +242,34 @@ class IptvPlayerController extends GetxController
       DeviceOrientation.landscapeRight,
     ]);
     showControls.value = true;
+  }
+
+  /// 根据全屏播放方向设置计算应锁定的屏幕方向列表。
+  /// IPTV 直播内容几乎都是横屏，auto 模式默认旋转到横屏。
+  List<DeviceOrientation> _resolveFullScreenOrientations() {
+    final mode = AppSettingsController.instance.fullScreenOrientation.value;
+    switch (mode) {
+      case FullScreenOrientationMode.portrait:
+        return [DeviceOrientation.portraitUp];
+      case FullScreenOrientationMode.landscape:
+        return [DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight];
+      case FullScreenOrientationMode.sensor:
+        return [
+          DeviceOrientation.portraitUp,
+          DeviceOrientation.portraitDown,
+          DeviceOrientation.landscapeLeft,
+          DeviceOrientation.landscapeRight,
+        ];
+      case FullScreenOrientationMode.auto:
+      default:
+        // IPTV 直播几乎全是横屏内容，auto 模式下默认横屏
+        final size = backend.videoNativeSize;
+        if (size != Size.zero && size.height > size.width) {
+          // 罕见的竖屏 IPTV 源：保持竖屏
+          return [DeviceOrientation.portraitUp];
+        }
+        return [DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight];
+    }
   }
 
   void toggleFullScreen() {

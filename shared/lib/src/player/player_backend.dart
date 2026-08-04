@@ -39,6 +39,11 @@ abstract class PlayerBackend {
   /// 当前音量（0-100）。不支持音量的后端返回 100。
   double get currentVolume;
 
+  /// 视频原始分辨率。已知时返回实际值，未知或未初始化时返回 [Size.zero]。
+  /// 用于\"全屏播放方向 → 自动\"模式：宽 > 高即视为横屏视频，旋转到横屏；
+  /// 高 >= 宽即视为竖屏视频，保持竖屏全屏。
+  Size get videoNativeSize => Size.zero;
+
   // ── 控制 ───────────────────────────────────────────────
   Future<void> open(String pathOrUrl);
   Future<void> playOrPause();

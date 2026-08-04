@@ -67,6 +67,9 @@ class ExoBackend with ChangeNotifier implements PlayerBackend {
   double get currentVolume =>
       (_controller?.value.volume ?? 1.0) * 100.0;
 
+  @override
+  Size get videoNativeSize => _controller?.value.size ?? Size.zero;
+
   void _onChanged() {
     final c = _controller;
     if (c == null) return;

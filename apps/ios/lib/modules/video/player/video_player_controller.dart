@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:player_shared/player_shared.dart';
@@ -156,10 +157,8 @@ class VideoPlayerController extends GetxController
     if (isFullScreen.value) return;
     isFullScreen.value = true;
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-    SystemChrome.setPreferredOrientations([
-      DeviceOrientation.landscapeLeft,
-      DeviceOrientation.landscapeRight,
-    ]);
+    SystemChrome.setPreferredOrientations(
+        _resolveFullScreenOrientations(isIptv: false));
   }
 
   void exitFullScreen() {
@@ -171,6 +170,42 @@ class VideoPlayerController extends GetxController
       DeviceOrientation.landscapeLeft,
       DeviceOrientation.landscapeRight,
     ]);
+  }
+
+  /// 根据全屏播放方向设置计算应锁定的屏幕方向列表。
+  /// [isIptv] 为 true 时表示 IPTV 场景（auto 模式默认横屏，因为电视直播基本都是横屏）。
+  List<DeviceOrientation> _resolveFullScreenOrientations({required bool isIptv}) {
+    final mode = AppSettingsController.instance.fullScreenOrientation.value;
+    switch (mode) {
+      case FullScreenOrientationMode.portrait:
+        // 始终保持竖屏，不旋转
+        return [DeviceOrientation.portraitUp];
+      case FullScreenOrientationMode.landscape:
+        // 始终旋转到横屏（默认行为）
+        return [DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight];
+      case FullScreenOrientationMode.sensor:
+        // 跟随传感器，允许四方向自由旋转
+        return [
+          DeviceOrientation.portraitUp,
+          DeviceOrientation.portraitDown,
+          DeviceOrientation.landscapeLeft,
+          DeviceOrientation.landscapeRight,
+        ];
+      case FullScreenOrientationMode.auto:
+      default:
+        if (isIptv) {
+          // IPTV 直播几乎全是横屏内容，auto 模式默认横屏
+          return [DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight];
+        }
+        // 本地视频：读取视频原始分辨率判断横竖屏
+        final size = backend.videoNativeSize;
+        final isLandscapeVideo = size == Size.zero || size.width >= size.height;
+        if (isLandscapeVideo) {
+          return [DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight];
+        } else {
+          return [DeviceOrientation.portraitUp];
+        }
+    }
   }
 
   void toggleFullScreen() {

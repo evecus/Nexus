@@ -9,6 +9,13 @@ import '../storage/storage_service.dart';
 /// - vlc: 全部使用 libVLC（Windows 上对 IPTV 直播流兼容性最好）
 enum PlayerBackendChoice { auto, exo, mpv, vlc }
 
+/// 手机端全屏播放时的屏幕旋转策略（平板端不使用此设置）。
+/// - auto: 根据视频本身的宽高比决定——横屏视频旋转到横屏，竖屏视频保持竖屏
+/// - portrait: 始终保持竖屏（不旋转），所有视频都以竖屏全屏播放
+/// - landscape: 始终旋转到横屏（当前默认行为），所有视频都旋转到横屏播放
+/// - sensor: 跟随传感器——手机实际朝向决定方向，允许四个方向自由旋转
+enum FullScreenOrientationMode { auto, portrait, landscape, sensor }
+
 /// Base settings that are common to ALL three apps.
 /// Each app subclass adds its own platform-specific settings on top.
 abstract class BaseSettingsController extends GetxController {
@@ -27,6 +34,11 @@ abstract class BaseSettingsController extends GetxController {
   /// IPTV 专用后端选择（auto / exo / mpv / vlc），独立于本地视频后端。
   /// Windows 端默认 vlc（在 AppSettingsController.onInit 里迁移 auto→vlc）。
   final iptvBackend = PlayerBackendChoice.auto.obs;
+
+  // ── Mobile: 全屏播放方向 ──────────────────────────────────────────────────
+  /// 手机端全屏播放时的屏幕旋转策略。默认 auto（根据视频宽高比自动决定）。
+  /// 平板端不读取此设置（始终保持当前宽屏布局，不旋转）。
+  final fullScreenOrientation = FullScreenOrientationMode.auto.obs;
 
   // ── Media scan paths ─────────────────────────────────────────────────────
   final RxList<String> videoScanPaths = <String>[].obs;
@@ -60,6 +72,11 @@ abstract class BaseSettingsController extends GetxController {
     // VLC 硬解开关
     vlcHardwareDecode.value =
         StorageService.getValue(StorageService.kVlcHardwareDecode, true);
+
+    // 全屏播放方向（仅手机端生效）
+    final orientStr = StorageService.getValue(
+        StorageService.kFullScreenOrientation, 'auto');
+    fullScreenOrientation.value = _parseOrientationMode(orientStr);
 
     videoScanPaths.value =
         StorageService.getValue<List>(StorageService.kVideoScanPaths, [])
@@ -132,6 +149,25 @@ abstract class BaseSettingsController extends GetxController {
         return PlayerBackendType.vlc;
       case PlayerBackendChoice.auto:
         return isIptv ? PlayerBackendType.mpv : PlayerBackendType.exo;
+    }
+  }
+
+  Future<void> setFullScreenOrientation(FullScreenOrientationMode v) async {
+    fullScreenOrientation.value = v;
+    await StorageService.setValue(
+        StorageService.kFullScreenOrientation, v.name);
+  }
+
+  FullScreenOrientationMode _parseOrientationMode(String s) {
+    switch (s) {
+      case 'portrait':
+        return FullScreenOrientationMode.portrait;
+      case 'landscape':
+        return FullScreenOrientationMode.landscape;
+      case 'sensor':
+        return FullScreenOrientationMode.sensor;
+      default:
+        return FullScreenOrientationMode.auto;
     }
   }
 

@@ -43,6 +43,11 @@ class StorageService {
   static const kThemeMode       = 'theme_mode';
   static const kSeedColor       = 'seed_color';
 
+  // ── Mobile only: 全屏播放方向 ─────────────────────────────────────────────
+  // 值为 FullScreenOrientationMode.name（枚举名字符串），如
+  // 'auto' / 'portrait' / 'landscape' / 'sensor'
+  static const kFullScreenOrientation = 'fullscreen_orientation';
+
   // ── Windows: 视频库排序 ──────────────────────────────────────────────────
   // 值为 SortMode.name（枚举名字符串），如 'name' / 'size' / 'ext'
   static const kVideoSortMode   = 'video_sort_mode';

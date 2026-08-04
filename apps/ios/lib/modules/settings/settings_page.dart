@@ -186,6 +186,22 @@ class _SettingsPageState extends State<SettingsPage> {
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => _showProfilePicker(context, settings),
               )),
+          // 全屏播放方向：仅手机端（宽度 < 600dp）显示，平板端保持原状
+          Builder(
+            builder: (context) {
+              final isPhone = MediaQuery.sizeOf(context).width < 600;
+              if (!isPhone) return const SizedBox.shrink();
+              return Obx(() => ListTile(
+                    leading: const Icon(Icons.screen_rotation_outlined),
+                    title: const Text('全屏播放方向'),
+                    subtitle: Text(_orientationLabel(
+                        settings.fullScreenOrientation.value)),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () =>
+                        _showOrientationPicker(context, settings),
+                  ));
+            },
+          ),
 
           // ── 本地文件 ────────────────────────────────────────────
           // iOS 沙盒无法像 Android 那样自动扫描整个设备存储，改为让用户
@@ -337,6 +353,52 @@ class _SettingsPageState extends State<SettingsPage> {
               ],
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  String _orientationLabel(FullScreenOrientationMode mode) {
+    switch (mode) {
+      case FullScreenOrientationMode.auto:
+        return '自动（竖屏视频不旋转，横屏视频旋转）';
+      case FullScreenOrientationMode.portrait:
+        return '竖屏（始终不旋转）';
+      case FullScreenOrientationMode.landscape:
+        return '横屏（始终旋转，当前默认）';
+      case FullScreenOrientationMode.sensor:
+        return '跟随传感器';
+    }
+  }
+
+  void _showOrientationPicker(
+      BuildContext context, AppSettingsController settings) {
+    showModalBottomSheet(
+      context: context,
+      builder: (_) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Text('全屏播放方向',
+                style: Theme.of(context).textTheme.titleMedium),
+          ),
+          Obx(() => RadioGroup<FullScreenOrientationMode>(
+                groupValue: settings.fullScreenOrientation.value,
+                onChanged: (FullScreenOrientationMode? v) {
+                  if (v != null) settings.setFullScreenOrientation(v);
+                  Navigator.pop(context);
+                },
+                child: Column(
+                  children: FullScreenOrientationMode.values
+                      .map((m) => RadioListTile<FullScreenOrientationMode>(
+                            title: Text(_orientationLabel(m)),
+                            value: m,
+                          ))
+                      .toList(),
+                ),
+              )),
+          const SizedBox(height: 16),
         ],
       ),
     );
