@@ -261,7 +261,6 @@ class IptvPlayerController extends GetxController
           DeviceOrientation.landscapeRight,
         ];
       case FullScreenOrientationMode.auto:
-      default:
         // IPTV 直播几乎全是横屏内容，auto 模式下默认横屏
         final size = backend.videoNativeSize;
         if (size != Size.zero && size.height > size.width) {

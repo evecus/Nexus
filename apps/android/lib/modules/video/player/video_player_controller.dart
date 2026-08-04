@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:player_shared/player_shared.dart';
@@ -192,7 +191,6 @@ class VideoPlayerController extends GetxController
           DeviceOrientation.landscapeRight,
         ];
       case FullScreenOrientationMode.auto:
-      default:
         if (isIptv) {
           // IPTV 直播几乎全是横屏内容，auto 模式默认横屏
           return [DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight];
