@@ -55,6 +55,14 @@ class MpvBackend implements PlayerBackend {
   @override
   double get currentVolume => player.state.volume;
 
+  @override
+  Size get videoNativeSize {
+    final w = player.state.width;
+    final h = player.state.height;
+    if (w == null || h == null || w == 0 || h == 0) return Size.zero;
+    return Size(w.toDouble(), h.toDouble());
+  }
+
   // ── 控制 ───────────────────────────────────────────────
   @override
   Future<void> open(String pathOrUrl) async {
