@@ -1,0 +1,113 @@
+name: Build Android
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build APK
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      # ── Checkout ────────────────────────────────────────────────────────
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ── Java (required by the Android toolchain) ─────────────────────
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      # ── Flutter ──────────────────────────────────────────────────────
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.6'
+          channel: stable
+          cache: true
+
+      # ── Dependencies ─────────────────────────────────────────────────
+      - name: Get shared package dependencies
+        working-directory: shared
+        run: flutter pub get
+
+      - name: Get Android app dependencies
+        working-directory: apps/android
+        run: flutter pub get
+
+      - name: Generate launcher icons
+        working-directory: apps/android
+        run: dart run flutter_launcher_icons
+
+      # ── Code quality ─────────────────────────────────────────────────
+      - name: Analyze
+        working-directory: apps/android
+        run: flutter analyze --no-fatal-infos
+
+      - name: Clean & re-resolve deps before build
+        working-directory: apps/android
+        run: |
+          flutter clean
+          flutter pub get
+
+      # ── Keystore setup (release only) ─────────────────────────────────
+      - name: Decode keystore
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode \
+            > apps/android/android/app/keystore.jks
+
+      - name: Write key.properties
+        run: |
+          cat > apps/android/android/key.properties <<EOF
+          storePassword=${{ secrets.ANDROID_KEY_PASSWORD }}
+          keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}
+          keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}
+          storeFile=keystore.jks
+          EOF
+
+      - name: Build APK (release, for main)
+        working-directory: apps/android
+        run: |
+          flutter build apk --release --split-per-abi \
+            --target-platform android-arm,android-arm64 || {
+            echo "flutter build exited non-zero (Flutter 3.44 watcher bug)."
+            echo "Dart artifacts already written — retrying via Gradle directly..."
+            # -Ptarget-platform 是 Flutter Gradle 插件读取的架构过滤参数，
+            # 必须显式传入，否则 Gradle 会退回到默认的全架构(含 x86_64)编译，
+            # 使上面 --target-platform 的限速效果失效。
+            cd android && ./gradlew assembleRelease \
+              -Ptarget-platform=android-arm,android-arm64
+          }
+
+      # ── Rename per-arch APKs ──────────────────────────────────────────
+      # APK 路径已知，无需 find：直接从 flutter-apk/ 目录读取三个分架构包并重命名。
+      - name: Rename APKs
+        run: |
+          APK_DIR="apps/android/android/app/build/outputs/flutter-apk"
+          OUT_DIR="$GITHUB_WORKSPACE/release-apks"
+          mkdir -p "$OUT_DIR"
+          for arch in arm64-v8a armeabi-v7a; do
+            src="$APK_DIR/app-${arch}-release.apk"
+            dst="$OUT_DIR/nexus-${arch}-release.apk"
+            if [ -f "$src" ]; then
+              cp "$src" "$dst"
+              echo "[OK] $src -> $dst"
+            else
+              echo "[WARN] Not found: $src"
+            fi
+          done
+          echo "=== Final release APKs ==="
+          ls -lh "$OUT_DIR/" || echo "(none)"
+
+
+      # ── Publish GitHub Release ────────────────────────────────────────
+      - name: Publish Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: test
+          name: Nexus-test
+          files: release-apks/*.apk

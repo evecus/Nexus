@@ -1,0 +1,100 @@
+name: Build iOS
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build unsigned IPA
+    runs-on: macos-15
+    permissions:
+      contents: write
+
+    steps:
+      # ── Checkout ────────────────────────────────────────────────────────
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ── Flutter ──────────────────────────────────────────────────────
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.6'
+          channel: stable
+          cache: true
+
+      # ── Dependencies ─────────────────────────────────────────────────
+      - name: Get shared package dependencies
+        working-directory: shared
+        run: flutter pub get
+
+      - name: Get iOS app dependencies
+        working-directory: apps/ios
+        run: flutter pub get
+
+      - name: Generate launcher icons
+        working-directory: apps/ios
+        run: dart run flutter_launcher_icons
+
+      # ── Code quality ─────────────────────────────────────────────────
+      - name: Analyze
+        working-directory: apps/ios
+        run: flutter analyze --no-fatal-infos
+
+      - name: Clean & re-resolve deps before build
+        working-directory: apps/ios
+        run: |
+          flutter clean
+          flutter pub get
+          dart run flutter_launcher_icons
+
+      # ── CocoaPods ────────────────────────────────────────────────────
+      # apps/ios/ios 目录（Runner.xcodeproj、Podfile、原生 Swift 桥接等）已
+      # 随仓库提交，不通过 `flutter create` 现场生成——这样才能保留
+      # NexusDirectoryBookmark.swift 这个自定义原生插件的接入。这里只需要
+      # 解析 Podfile 安装三方库(media_kit/video_player/file_picker 等)。
+      # 放在 `flutter clean` 之后，避免 clean 清掉 Pods 后构建时找不到依赖。
+      - name: Install CocoaPods dependencies
+        working-directory: apps/ios/ios
+        run: pod install --repo-update
+
+      # ── Build (unsigned) ────────────────────────────────────────────
+      # 没有付费开发者账号，无法在 CI 里做 App Store / Ad Hoc 签名，
+      # 因此构建未签名的 Release .app，之后手动打包成标准 ipa 结构，
+      # 供 AltStore / Sideloadly / 爱思助手等工具在本机用免费 Apple ID
+      # 重新签名后安装到真机(这一步需要你自己在电脑上用这些工具完成，
+      # CI 这边只负责产出未签名 ipa)。
+      - name: Build unsigned iOS app
+        working-directory: apps/ios
+        run: |
+          flutter build ios --release --no-codesign
+
+      # ── Package into unsigned IPA ──────────────────────────────────
+      # 标准 ipa 内部结构固定为 Payload/<AppName>.app，直接把 flutter
+      # build 产出的 .app 套进这个结构再压缩重命名即可，AltStore 等工具
+      # 认的就是这个格式。
+      - name: Package unsigned IPA
+        run: |
+          set -e
+          APP_PATH="apps/ios/build/ios/iphoneos/Runner.app"
+          if [ ! -d "$APP_PATH" ]; then
+            echo "未找到构建产物: $APP_PATH"
+            find apps/ios/build -maxdepth 4 -type d -name "*.app" || true
+            exit 1
+          fi
+          OUT_DIR="$GITHUB_WORKSPACE/release-ipa"
+          mkdir -p "$OUT_DIR/Payload"
+          cp -R "$APP_PATH" "$OUT_DIR/Payload/Runner.app"
+          cd "$OUT_DIR"
+          zip -r -y "nexus-ios-unsigned.ipa" "Payload" > /dev/null
+          rm -rf "Payload"
+          echo "=== 打包结果 ==="
+          ls -lh "$OUT_DIR"
+
+      # ── Publish GitHub Release ────────────────────────────────────────
+      - name: Publish Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: test
+          name: Nexus-test
+          files: release-ipa/*.ipa

@@ -1,0 +1,81 @@
+name: nexus
+version: 1.0.0+1
+publish_to: none
+description: "Nexus for iOS (iPhone & iPad)"
+
+environment:
+  sdk: ">=3.0.5 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+
+  player_shared:
+    path: ../../shared
+
+  # State management & routing
+  get: ^4.7.3
+
+  # Storage (init done via player_shared)
+  hive_flutter: 1.1.0
+
+  # Video / Audio
+  media_kit: ^1.2.2
+  media_kit_video: ^2.0.0
+  media_kit_libs_video: ^1.0.7
+  video_player: ^2.9.2
+
+  # UI
+  cupertino_icons: ^1.0.8
+  dynamic_color: ^1.8.1
+  flutter_smart_dialog: ^4.9.8+9
+
+  # System
+  package_info_plus: ^9.0.0
+  device_info_plus: 12.2.0
+  url_launcher: ^6.3.2
+  permission_handler: ^12.0.1
+  # 本地视频/音乐"目录导入"用系统文件夹选择器(iOS 沙盒下唯一合法的
+  # 本地文件访问入口),持久化访问由 ios/Runner 内的原生 Swift 桥接
+  # (NexusDirectoryBookmark.swift)负责，见 lib/bookmarks/ 与
+  # lib/scanner/ios_local_scanner.dart。
+  file_picker: ^10.3.7
+  path_provider: ^2.1.5
+  screen_brightness: ^2.1.7
+  volume_controller: ^3.4.0
+  auto_orientation_v2: ^2.3.6
+  wakelock_plus: ^1.4.0
+  # 注意:未引入 `floating`(画中画)包——该包官方明确注明"Android only，
+  # iOS/web 支持无计划"(iOS 没有等价的应用内画中画开关机制，iOS 的画中画
+  # 需要 AVPictureInPictureController 原生桥接，属独立的后续原生开发
+  # 工作，本次未包含；Android/TV 端代码里也未实际调用这个包的任何 API，
+  # 去掉它不影响功能对齐)。
+  connectivity_plus: 7.0.0
+  collection: any
+  intl: ^0.20.2
+  path: any
+  dio: ^5.9.0
+
+dev_dependencies:
+  flutter_lints: ^2.0.0
+  flutter_test:
+    sdk: flutter
+  flutter_launcher_icons: ^0.13.1
+
+flutter_launcher_icons:
+  android: false
+  ios: true
+  image_path: "assets/icons/app_icon.png"
+  # 原始图标(app_icon.png)带 alpha 通道；App Store 要求 iOS App 图标
+  # 不能含透明度，否则上传 App Store Connect 时会被拒。此选项让
+  # flutter_launcher_icons 在生成 iOS 图标资源时自动去除 alpha 通道
+  # (用白色背景合成)，与 Android 端共用同一张源图，不需要单独准备
+  # 一张不透明版本。
+  remove_alpha_ios: true
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/icons/

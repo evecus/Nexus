@@ -1,0 +1,96 @@
+name: Build Windows
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build Windows EXE
+    runs-on: windows-2022
+
+    steps:
+      # ── Checkout ────────────────────────────────────────────────────────
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ── Flutter ──────────────────────────────────────────────────────
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.6'
+          channel: stable
+          cache: true
+
+      - name: Enable Windows desktop
+        run: flutter config --enable-windows-desktop
+
+      - name: Create Windows platform project
+        working-directory: apps/windows
+        run: flutter create --platforms=windows .
+
+      - name: Remove default widget test
+        working-directory: apps/windows
+        shell: pwsh
+        run: |
+          if (Test-Path "test/widget_test.dart") {
+            Remove-Item "test/widget_test.dart" -Force
+          }
+          if ((Get-ChildItem test -ErrorAction SilentlyContinue | Measure-Object).Count -eq 0) {
+            Remove-Item test -Recurse -Force -ErrorAction SilentlyContinue
+          }
+
+      - name: Analyze
+        working-directory: apps/windows
+        run: flutter analyze --no-fatal-infos
+      
+      - name: clean Windows app dependencies
+        working-directory: apps/windows
+        run: flutter clean
+
+      # ── Dependencies ─────────────────────────────────────────────────
+      - name: Get shared package dependencies
+        working-directory: shared
+        run: flutter pub get
+
+      - name: Get Windows app dependencies
+        working-directory: apps/windows
+        run: flutter pub get
+
+      - name: Generate launcher icon
+        working-directory: apps/windows
+        run: dart run flutter_launcher_icons
+
+      - name: Build Windows (release, for main)
+        working-directory: apps/windows
+        run: flutter build windows --release
+
+      - name: Strip unused VLC plugins
+        working-directory: apps/windows
+        shell: pwsh
+        run: |
+          powershell -ExecutionPolicy Bypass -File scripts\strip_vlc_plugins.ps1
+
+      - name: Report Release size
+        shell: pwsh
+        run: |
+          $src = "apps\windows\build\windows\x64\runner\Release"
+          $size = (Get-ChildItem $src -Recurse | Measure-Object -Property Length -Sum).Sum / 1MB
+          Write-Host ("Release directory total size: {0:N1} MB" -f $size)
+
+      # ── Package into zip ─────────────────────────────────────────────
+      - name: Package release as ZIP
+        shell: pwsh
+        run: |
+          $src = "apps\windows\build\windows\x64\runner\Release"
+          $dst = "Nexus-Windows-x64.zip"
+          Compress-Archive -Path "$src\*" -DestinationPath $dst -Force
+
+      # ── Create GitHub Release (optional, on version tags) ─────────────
+      - name: Create Release on tag
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: test
+          name: Nexus-test
+          files: Nexus-Windows-x64.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,82 @@
+name: nexus
+version: 1.0.0+1
+publish_to: none
+description: "Nexus for macOS desktop"
+
+environment:
+  sdk: ">=3.0.5 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+
+  player_shared:
+    path: ../../shared
+
+  get: ^4.7.3
+  hive_flutter: 1.1.0
+  media_kit: ^1.2.2
+  media_kit_video: ^2.0.0
+  # macOS 下 media_kit_libs_video 会自动拉取/链接自带的 libmpv（通过
+  # CocoaPods），与 Windows/Linux 走同一套 Dart 侧 API，无需额外适配。
+  media_kit_libs_video: ^1.0.7
+
+  # IPTV 直播流备用后端：libVLC 对 HLS/TS/RTMP 兼容性比 mpv 更好，
+  # 在 settings 里可切换。
+  #
+  # 【构建风险点，需要在本地跑一遍确认】
+  # vlc_player 包基于纹理/原生视图渲染，官方声称支持 Windows/Linux/macOS
+  # 桌面，但本次移植没有 Flutter/macOS 编译环境（需要 Xcode）可实际验证。
+  # 若 pub get / build 时发现该包在 macOS 上不可用或缺少 native 绑定：
+  #   1) 保留依赖但不影响主体功能——mpv 是默认后端，IPTV/视频/音乐播放
+  #      不依赖 vlc_player 也能正常工作；
+  #   2) 设置页"IPTV 备用后端"里 VLC 选项可以直接隐藏/禁用（参考
+  #      app_settings_controller.dart 里 Windows 强制 vlc 默认值的写法，
+  #      macOS 改为强制 mpv 默认值，不展示 vlc 选项，或展示但捕获异常
+  #      后自动回退 mpv，见 vlc_backend.dart 顶部新增注释）；
+  #   3) macOS 下 vlc_player 通过 CocoaPods 拉取预编译 VLCKit，构建时
+  #      需要联网且首次构建耗时明显变长；应用签名/公证时需要确认
+  #      VLCKit.framework 被正确一并打包和签名。
+  vlc_player: ^2.1.2
+
+  # 视频缩略图原生取帧：fc_native_video_thumbnail 在 macOS 下底层是
+  # AVFoundation，与 Windows 端的 Media Foundation 是同一个插件、不同
+  # 平台实现，接口调用方式不变，见 video_tab_page.dart 的
+  # _generateWithFcNative 顶部注释（macOS 端额外说明了与 Windows 端的
+  # 正方形尺寸行为差异）。
+  fc_native_video_thumbnail: ^3.0.1
+
+  cupertino_icons: ^1.0.8
+  dynamic_color: ^1.8.1
+  flutter_smart_dialog: ^4.9.8+9
+
+  package_info_plus: ^9.0.0
+  url_launcher: ^6.3.2
+  file_picker: ^10.3.7
+  window_manager: ^0.5.1
+  tray_manager: ^0.5.1
+  screen_retriever: ^0.2.0
+  wakelock_plus: ^1.4.0
+  connectivity_plus: 7.0.0
+  collection: any
+  intl: ^0.20.2
+  path: any
+  dio: ^5.9.0
+
+dev_dependencies:
+  flutter_lints: ^2.0.0
+  flutter_test:
+    sdk: flutter
+  flutter_launcher_icons: ^0.13.1
+
+flutter_launcher_icons:
+  macos:
+    generate: true
+    image_path: "assets/icons/app_icon.png"
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/icons/

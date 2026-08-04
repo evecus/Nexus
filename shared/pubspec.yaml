@@ -1,0 +1,48 @@
+name: player_shared
+version: 0.1.0
+description: "Shared business logic and models for Nexus apps"
+publish_to: none
+
+environment:
+  sdk: ">=3.0.5 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # State management
+  get: ^4.7.3
+
+  # Storage
+  hive: 2.2.3
+  hive_flutter: 1.1.0
+  path_provider: ^2.1.5
+  path: any
+
+  # Network
+  dio: ^5.9.0
+
+  # Video / Audio
+  media_kit: ^1.2.6
+  media_kit_video: ^2.0.1
+  media_kit_libs_video: ^1.0.7
+
+  # 视频缩略图(原生取帧,替代 media_kit 截图方案，速度更快、资源占用更低)
+  # - Android/Android TV: video_thumbnail 底层走 MediaMetadataRetriever
+  # - Windows: fc_native_video_thumbnail 底层走 Media Foundation
+  # 两者都不支持的平台(理论上不会触发，仅作兜底)会自动回退到 media_kit 截图方案
+  video_thumbnail: ^0.5.6
+  fc_native_video_thumbnail: ^3.0.1
+
+  # System
+  wakelock_plus: ^1.4.0
+  screen_brightness: ^2.1.7
+  volume_controller: ^3.4.0
+  file_picker: ^10.3.7
+  permission_handler: ^12.0.1
+  connectivity_plus: 7.0.0
+  collection: any
+  intl: ^0.20.2
+
+flutter:
+  uses-material-design: true
