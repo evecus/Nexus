@@ -1,4 +1,5 @@
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 import 'package:get/get.dart';
 import 'package:player_shared/player_shared.dart';
 
@@ -183,8 +184,18 @@ class VideoPlayerController extends GetxController
         // 始终旋转到横屏（默认行为）
         return [DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight];
       case FullScreenOrientationMode.sensor:
-        // 传空列表：清除方向锁定，完全交由设备传感器决定
-        return [];
+        // 读取进入全屏那一刻的物理屏幕方向，横持→旋横屏，竖持→保持竖屏。
+        // 比传空列表更可靠：不依赖系统自动旋转开关是否打开。
+        final physicalSize = WidgetsBinding
+            .instance.platformDispatcher.views.first.physicalSize;
+        if (physicalSize.width > physicalSize.height) {
+          return [
+            DeviceOrientation.landscapeLeft,
+            DeviceOrientation.landscapeRight,
+          ];
+        } else {
+          return [DeviceOrientation.portraitUp];
+        }
       case FullScreenOrientationMode.auto:
         if (isIptv) {
           // IPTV 直播几乎全是横屏内容，auto 模式默认横屏
