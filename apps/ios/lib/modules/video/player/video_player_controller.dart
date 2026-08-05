@@ -183,13 +183,8 @@ class VideoPlayerController extends GetxController
         // 始终旋转到横屏（默认行为）
         return [DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight];
       case FullScreenOrientationMode.sensor:
-        // 跟随传感器，允许四方向自由旋转
-        return [
-          DeviceOrientation.portraitUp,
-          DeviceOrientation.portraitDown,
-          DeviceOrientation.landscapeLeft,
-          DeviceOrientation.landscapeRight,
-        ];
+        // 传空列表：清除方向锁定，完全交由设备传感器决定
+        return [];
       case FullScreenOrientationMode.auto:
         if (isIptv) {
           // IPTV 直播几乎全是横屏内容，auto 模式默认横屏

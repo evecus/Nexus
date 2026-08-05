@@ -254,12 +254,8 @@ class IptvPlayerController extends GetxController
       case FullScreenOrientationMode.landscape:
         return [DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight];
       case FullScreenOrientationMode.sensor:
-        return [
-          DeviceOrientation.portraitUp,
-          DeviceOrientation.portraitDown,
-          DeviceOrientation.landscapeLeft,
-          DeviceOrientation.landscapeRight,
-        ];
+        // 传空列表：清除方向锁定，完全交由设备传感器决定
+        return [];
       case FullScreenOrientationMode.auto:
         // IPTV 直播几乎全是横屏内容，auto 模式下默认横屏
         final size = backend.videoNativeSize;

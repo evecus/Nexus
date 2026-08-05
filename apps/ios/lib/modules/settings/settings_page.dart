@@ -361,11 +361,11 @@ class _SettingsPageState extends State<SettingsPage> {
   String _orientationLabel(FullScreenOrientationMode mode) {
     switch (mode) {
       case FullScreenOrientationMode.auto:
-        return '自动（竖屏视频不旋转，横屏视频旋转）';
+        return '自动';
       case FullScreenOrientationMode.portrait:
-        return '竖屏（始终不旋转）';
+        return '竖屏';
       case FullScreenOrientationMode.landscape:
-        return '横屏（始终旋转，当前默认）';
+        return '横屏';
       case FullScreenOrientationMode.sensor:
         return '跟随传感器';
     }
