@@ -42,6 +42,7 @@ dependencies:
   screen_brightness: ^2.1.7
   volume_controller: ^3.4.0
   auto_orientation_v2: ^2.3.6
+  native_device_orientation: ^1.2.0
   wakelock_plus: ^1.4.0
   floating: ^6.0.0
   connectivity_plus: 7.0.0

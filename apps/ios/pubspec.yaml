@@ -46,6 +46,7 @@ dependencies:
   screen_brightness: ^2.1.7
   volume_controller: ^3.4.0
   auto_orientation_v2: ^2.3.6
+  native_device_orientation: ^1.2.0
   wakelock_plus: ^1.4.0
   # 注意:未引入 `floating`(画中画)包——该包官方明确注明"Android only，
   # iOS/web 支持无计划"(iOS 没有等价的应用内画中画开关机制，iOS 的画中画

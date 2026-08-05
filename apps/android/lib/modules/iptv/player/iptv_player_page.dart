@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
@@ -5,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 import 'package:get/get.dart';
+import 'package:native_device_orientation/native_device_orientation.dart';
 import 'package:player_shared/player_shared.dart';
 
 import 'package:nexus/app/controller/app_settings_controller.dart';
@@ -52,6 +54,8 @@ class IptvPlayerController extends GetxController
   /// 解码方式已迁移到全局设置（播放器后端 + MPV 硬/软解），此处保留 mode 0
   /// 仅用于在 IPTV 设置弹窗里展示当前解码方式（读全局 settings）。
   // (移除了独立的 decodeMode 状态)
+
+  StreamSubscription<NativeDeviceOrientation>? _orientationSubscription;
 
   // ── 入参 ──────────────────────────────────────────────
   late final String initialUrl;
@@ -228,12 +232,50 @@ class IptvPlayerController extends GetxController
     if (isFullScreen.value) return;
     isFullScreen.value = true;
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-    SystemChrome.setPreferredOrientations(_resolveFullScreenOrientations());
+    final mode = AppSettingsController.instance.fullScreenOrientation.value;
+    if (mode == FullScreenOrientationMode.sensor) {
+      _startSensorOrientation();
+    } else {
+      SystemChrome.setPreferredOrientations(_resolveFullScreenOrientations());
+    }
     autoHideControls(seconds: 3);
+  }
+
+  /// 传感器模式：解锁所有方向后，持续监听设备物理旋转并实时跟随。
+  void _startSensorOrientation() {
+    SystemChrome.setPreferredOrientations([]);
+    _orientationSubscription?.cancel();
+    _orientationSubscription = NativeDeviceOrientationCommunicator()
+        .onOrientationChanged(useSensor: true)
+        .listen((orientation) {
+      if (!isFullScreen.value) return;
+      switch (orientation) {
+        case NativeDeviceOrientation.landscapeLeft:
+          SystemChrome.setPreferredOrientations(
+              [DeviceOrientation.landscapeLeft]);
+          break;
+        case NativeDeviceOrientation.landscapeRight:
+          SystemChrome.setPreferredOrientations(
+              [DeviceOrientation.landscapeRight]);
+          break;
+        case NativeDeviceOrientation.portraitUp:
+          SystemChrome.setPreferredOrientations(
+              [DeviceOrientation.portraitUp]);
+          break;
+        case NativeDeviceOrientation.portraitDown:
+          SystemChrome.setPreferredOrientations(
+              [DeviceOrientation.portraitDown]);
+          break;
+        case NativeDeviceOrientation.unknown:
+          break;
+      }
+    });
   }
 
   void exitFullScreen() {
     if (!isFullScreen.value) return;
+    _orientationSubscription?.cancel();
+    _orientationSubscription = null;
     isFullScreen.value = false;
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     SystemChrome.setPreferredOrientations([
@@ -254,18 +296,9 @@ class IptvPlayerController extends GetxController
       case FullScreenOrientationMode.landscape:
         return [DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight];
       case FullScreenOrientationMode.sensor:
-        // 读取进入全屏那一刻的物理屏幕方向，横持→旋横屏，竖持→保持竖屏。
-        // 比传空列表更可靠：不依赖系统自动旋转开关是否打开。
-        final physicalSize = WidgetsBinding
-            .instance.platformDispatcher.views.first.physicalSize;
-        if (physicalSize.width > physicalSize.height) {
-          return [
-            DeviceOrientation.landscapeLeft,
-            DeviceOrientation.landscapeRight,
-          ];
-        } else {
-          return [DeviceOrientation.portraitUp];
-        }
+        // sensor 模式由 _startSensorOrientation() 实时监听处理，
+        // enterFullScreen 不会走到这里，返回空列表作为保底（解锁所有方向）。
+        return [];
       case FullScreenOrientationMode.auto:
         // IPTV 直播几乎全是横屏内容，auto 模式下默认横屏
         final size = backend.videoNativeSize;
@@ -314,6 +347,8 @@ class IptvPlayerController extends GetxController
 
   @override
   void onClose() {
+    _orientationSubscription?.cancel();
+    _orientationSubscription = null;
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.portraitUp,
